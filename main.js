@@ -1,103 +1,112 @@
-const { app, BrowserWindow, ipcMain, nativeShell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
+const { downloadToFolder, sanitizeFilename, filenameFromUrl } = require('./download-engine');
 
 let mainWindow;
+const activeDownloads = new Map();
 
-app.whenReady().then(() => {
+function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 900,
+    height: 760,
+    minWidth: 640,
+    minHeight: 560,
+    backgroundColor: '#0a0a0f',
+    title: 'Link Downloader',
     webPreferences: {
       contextIsolation: true,
-      enableRemoteModule: true,
+      nodeIntegration: false,
+      sandbox: false,
       preload: path.join(__dirname, 'preload.js')
     }
   });
 
+  mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile('index.html');
+}
+
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  activeDownloads.forEach((state) => {
+    state.cancelled = true;
+    try { state.request.destroy(); } catch (e) {}
+    try { state.fileStream.destroy(); } catch (e) {}
+  });
+  if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    app.whenReady().then(() => {
-      mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        webPreferences: {
-          contextIsolation: true,
-          enableRemoteModule: true,
-          preload: path.join(__dirname, 'preload.js')
-        }
-      });
-      mainWindow.loadFile('index.html');
+ipcMain.handle('dialog:chooseFolder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose download folder',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('download:start', async (_event, { id, url, filename, directory }) => {
+  let dir = directory;
+
+  if (!dir) {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose download folder',
+      properties: ['openDirectory', 'createDirectory']
     });
-  }
-});
-
-// Handle download requests from renderer
-ipcMain.handle('download-file', async (event, { url, suggestedName, downloadDir }) => {
-  try {
-    let savePath = downloadDir;
-
-    // Let user choose save location if not specified
-    if (!savePath) {
-      const result = await dialog.showSaveDialog(mainWindow, {
-        title: 'Save File',
-        defaultPath: suggestedName,
-        properties: ['createDirectory']
-      });
-      if (result.canceled) {
-        return { cancelled: true, success: false };
-      }
-      savePath = result.filePath;
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, cancelled: true };
     }
+    dir = result.filePaths[0];
+  }
 
-    // Extract filename if path includes directory
-    const fileName = path.basename(savePath);
-    const finalPath = path.join(savePath, fileName);
+  const state = { id, cancelled: false, request: null, fileStream: null };
+  activeDownloads.set(id, state);
 
-    return new Promise((resolve) => {
-      const https = require('https');
-      const fs = require('fs');
-
-      const file = fs.createWriteStream(finalPath);
-      const request = https.get(url, (response) => {
-        response.pipe(file);
-
-        file.on('finish', () => {
-          file.close();
-          resolve({ success: true, path: finalPath, cancelled: false });
-        });
-
-        file.on('error', (err) => {
-          try { fs.unlink(finalPath); } catch(e) {}
-          resolve({ success: false, error: err.message, cancelled: false });
-        });
-      });
-
-      request.on('error', (err) => {
-        try { fs.unlink(finalPath); } catch(e) {}
-        resolve({ success: false, error: err.message, cancelled: false });
-      });
-
-      // Auto-cancel after 30 seconds if not finished
-      const timeout = setTimeout(() => {
-        try { file.close(); } catch(e) {}
-        try { fs.unlink(finalPath); } catch(e) {}
-        resolve({ success: false, error: 'Download timed out after 30 seconds', cancelled: true });
-      }, 30000);
-
-      // Handle download cancellation - we'll listen for this from renderer
+  try {
+    const safeName = sanitizeFilename(filename || filenameFromUrl(url, ''));
+    const result = await downloadToFolder({
+      url,
+      filename: safeName,
+      directory: dir,
+      id,
+      state,
+      onProgress: (data) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('download:progress', { id, ...data });
+        }
+      }
     });
-  } catch (error) {
-    return { success: false, error: error.message };
+    return result;
+  } catch (err) {
+    return { success: false, error: err.message };
+  } finally {
+    activeDownloads.delete(id);
+  }
+});
+
+ipcMain.handle('download:cancel', async (_event, id) => {
+  const state = activeDownloads.get(id);
+  if (!state) return { cancelled: false };
+  state.cancelled = true;
+  try { state.request.destroy(); } catch (e) {}
+  try { state.fileStream.destroy(); } catch (e) {}
+  activeDownloads.delete(id);
+  return { cancelled: true };
+});
+
+ipcMain.handle('shell:openPath', async (_event, targetPath) => {
+  if (!targetPath) return { success: false };
+  try {
+    shell.showItemInFolder(targetPath);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
   }
 });

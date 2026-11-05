@@ -1,46 +1,53 @@
 {
-  "name": "summit-plumbing",
+  "name": "link-downloader",
   "version": "1.0.0",
-  "description": "Link Downloader - Desktop application for downloading videos, music, pictures, and APK files",
+  "description": "Desktop application for downloading videos, music, pictures, and APK files",
   "main": "main.js",
+  "author": "mungaibriankariuki-collab",
+  "license": "MIT",
   "scripts": {
+    "start": "electron .",
     "electron": "electron .",
-    "dist": "build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dist": "electron-builder --win nsis",
+    "pack": "electron-builder --dir"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mungaibriankariuki-collab/link-downloader.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "build": {
-    "appId": "com.summitplumbing.linkdownloader",
-    "productName": "Link Downloader",
-    "copyright": "Copyright © 2026 Summit Plumbing",
-    "files": [
-      "main.js",
-      "index.html",
-      "preload.js",
-      "*.json",
-      "dist/**/*",
-      "!node_modules/**/*",
-      "!node_modules/.cache/**/*"
-    ],
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "assets/icon.png"
-    }
-  },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.mungaibrian.linkdownloader",
+    "productName": "Link Downloader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "download-engine.js",
+      "index.html"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Link Downloader"
+    }
   }
 }

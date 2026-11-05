@@ -1,0 +1,6 @@
+node_modules/
+dist/
+test-downloads/
+test-launch.ps1
+test-packaged.ps1
+*.log
