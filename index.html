@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta property="og:title" content="Link Downloader">
+  <meta property="og:description" content="Download videos, music, pictures, and APK files from links">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://github.com/mungaibriankariuki-collab/link-downloader">
   <title>Link Downloader - Video, Music, Picture, APK</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -86,6 +90,12 @@
       resultArea.textContent = message;
       resultArea.className = `status ${type}`;
       resultArea.style.display = 'block';
+      // Auto-clear info status after 5 seconds
+      if (type === 'info') {
+        setTimeout(() => {
+          resultArea.style.display = 'none';
+        }, 5000);
+      }
     }
 
     function showElement(id, visible) {
@@ -102,7 +112,9 @@
       const lowerUrl = url.toLowerCase();
       
       // APK links
-      if (/apkpure\.com/.test(lowerUrl) || /apkmirror\.com/.test(lowerUrl) || /github\.com/[^/]+/[^/]+/test(lowerUrl) && lowerUrl.endsWith('.apk') || lowerUrl.endsWith('.apk')) {
+      const isApkFile = /\.(apk)$/i.test(lowerUrl);
+      const isApkSource = /apkpure\.com/.test(lowerUrl) || /apkmirror\.com/.test(lowerUrl) || /github\.com\/[^/]+\/[^/]+\/.+\.apk/i.test(lowerUrl);
+      if (isApkFile || isApkSource) {
         return { type: 'apk', tag: 'APK' };
       }
       
