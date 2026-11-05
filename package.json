@@ -1,0 +1,46 @@
+{
+  "name": "summit-plumbing",
+  "version": "1.0.0",
+  "description": "Link Downloader - Desktop application for downloading videos, music, pictures, and APK files",
+  "main": "main.js",
+  "scripts": {
+    "electron": "electron .",
+    "dist": "build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mungaibriankariuki-collab/link-downloader.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.summitplumbing.linkdownloader",
+    "productName": "Link Downloader",
+    "copyright": "Copyright © 2026 Summit Plumbing",
+    "files": [
+      "main.js",
+      "index.html",
+      "preload.js",
+      "*.json",
+      "dist/**/*",
+      "!node_modules/**/*",
+      "!node_modules/.cache/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    }
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^26.18.0"
+  }
+}
