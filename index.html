@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Downloader - Video, Music, Picture, APK</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #0a0a0f; color: #e0e0e8; min-height: 100vh; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { margin-bottom: 20px; font-size: 1.8rem; background: linear-gradient(135deg, #ff6b6b, #ee5a24); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .panel { background: #16161f; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #333; }
+    .panel h2 { margin-bottom: 15px; color: #ff6b6b; font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 10px; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; color: #888; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; background: #0d0d14; border: 1px solid #333; border-radius: 4px; color: #e0e0e8; font-size: 0.9rem; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #444; }
+    .btn { padding: 10px 20px; background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.95rem; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.9; }
+    .btn:disabled { background: #555; cursor: not-allowed; opacity: 1; }
+    .btn-secondary { background: #555; }
+    .btn-secondary:hover { background: #666; }
+    .status { padding: 10px; background: #1a1a24; border-radius: 4px; margin: 10px 0; border-left: 4px solid; }
+    .status.success { border-left-color: #4ade80; background: #1e3a24; }
+    .status.error { border-left-color: #f87171; background: #3a1e1e; }
+    .status.info { border-left-color: #63b3ed; background: #1e2a3a; }
+    .download-area { margin-top: 20px; padding: 20px; background: #0d0d14; border-radius: 8; display: none; }
+    .download-area.visible { display: block; }
+    .progress-bar { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin: 10px 0; }
+    .progress-fill { height: 100%; width: 0%; background: linear-gradient(135deg, #ff6b6b, #ee5a24); transition: width 0.1s linear; }
+    .file-info { margin-top: 15px; padding: 10px; background: #1a1a24; border-radius: 4; display: none; }
+    .file-info.visible { display: block; }
+    .file-name { font-weight: bold; color: #ff6b6b; margin-bottom: 5px; }
+    .file-size { color: #888; font-size: 0.85rem; }
+    .download-btn { padding: 10px 20px; background: #10c98e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.95rem; width: 100%; }
+    .download-btn:hover { background: #28a745; }
+    .link-type { color: #63b3ed; font-size: 0.85rem; margin-top: 5px; }
+    .link-tag { display: inline-block; padding: 3px 8px; background: #2a2a3a; border-radius: 4px; font-size: 0.75rem; margin-right: 5px; margin-bottom: 5px; }
+    .tag-video { background: #ff0000; color: white; }
+    .tag-music { background: #ff6b6b; color: white; }
+    .tag-image { background: #f6e05e; color: #1e1e1e; }
+    .tag-apk { background: #8b5cf6; color: white; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Link Downloader</h1>
+    
+    <div class="panel">
+      <h2>Paste Your Link</h2>
+      <div class="form-group">
+        <label>URL</label>
+        <input type="url" id="urlInput" placeholder="https://www.example.com..." required>
+      </div>
+      <button class="btn" onclick="analyzeLink()">Analyze Link</button>
+      <div id="connectStatus" class="status info"></div>
+    </div>
+    
+    <div class="panel" id="downloadPanel" style="display: none;">
+      <h2>Download Options</h2>
+      <div id detectedLinkType></div>
+      <div class="download-area" id="downloadArea">
+        <div id="progressContainer" class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div id="fileInfo" class="file-info"></div>
+        <button class="btn download-btn" id="downloadBtn" disabled>Download</button>
+      </div>
+      <div id="resultArea" class="status"></div>
+    </div>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById('urlInput');
+    const analyzeBtn = document.querySelector('#downloadPanel .btn:first-of-type');
+    const downloadPanel = document.getElementById('downloadPanel');
+    const downloadArea = document.getElementById('downloadArea');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const resultArea = document.getElementById('resultArea');
+    const detectedLinkType = document.getElementById('detectedLinkType');
+
+    function showStatus(message, type) {
+      resultArea.textContent = message;
+      resultArea.className = `status ${type}`;
+      resultArea.style.display = 'block';
+    }
+
+    function showElement(id, visible) {
+      const el = document.getElementById(id);
+      el.classList.toggle('visible', visible);
+    }
+
+    function setStatus(el, message, className) {
+      el.textContent = message;
+      el.className = `status ${className}`;
+    }
+
+    function detectLinkType(url) {
+      const lowerUrl = url.toLowerCase();
+      
+      // APK links
+      if (/apkpure\.com/.test(lowerUrl) || /apkmirror\.com/.test(lowerUrl) || /github\.com/[^/]+/[^/]+/test(lowerUrl) && lowerUrl.endsWith('.apk') || lowerUrl.endsWith('.apk')) {
+        return { type: 'apk', tag: 'APK' };
+      }
+      
+      // Video links
+      if (/youtube\.com/.test(lowerUrl) || /youtu\.be/.test(lowerUrl)) {
+        return { type: 'video', tag: 'VIDEO', color: '#ff0000' };
+      }
+      if (/vimeo\.com/.test(lowerUrl)) {
+        return { type: 'video', tag: 'VIDEO' };
+      }
+      if (/dailymotion\.com/.test(lowerUrl)) {
+        return { type: 'video', tag: 'VIDEO' };
+      }
+      if (/tiktok\.com/.test(lowerUrl)) {
+        return { type: 'video', tag: 'VIDEO' };
+      }
+      if (/facebook\.com/.test(lowerUrl) || /instagram\.com/.test(lowerUrl)) {
+        return { type: 'video', tag: 'VIDEO' };
+      }
+      
+      // Music links
+      if (/soundcloud\.com/.test(lowerUrl)) {
+        return { type: 'music', tag: 'MUSIC', color: '#ff6b6b' };
+      }
+      if (/spotify\.com/.test(lowerUrl)) {
+        return { type: 'music', tag: 'MUSIC' };
+      }
+      if (/bandcamp\.com/.test(lowerUrl)) {
+        return { type: 'music', tag: 'MUSIC' };
+      }
+      
+      // Picture links
+      if (/imgur\.com/.test(lowerUrl) || /flickr\.com/.test(lowerUrl) || /unsplash\.com/.test(lowerUrl)) {
+        return { type: 'image', tag: 'IMAGE', color: '#f6e05e' };
+      }
+      if (/\.(png|jpe?g|gif|webp|bmp)(\?.*)?$/i.test(url)) {
+        return { type: 'image', tag: 'IMAGE' };
+      }
+      
+      return { type: 'unknown', tag: 'UNKNOWN' };
+    }
+
+    async function analyzeLink() {
+      const url = urlInput.value.trim();
+      if (!url) {
+        showStatus('Please enter a URL', 'error');
+        return;
+      }
+
+      const linkInfo = detectLinkType(url);
+      const tagClass = linkInfo.color ? `tag-${linkInfo.color}` : '';
+      
+      detectedLinkType.innerHTML = `<span class="link-tag ${tagClass}">${linkInfo.tag}</span> detected`;
+      downloadPanel.style.display = 'block';
+      
+      showStatus(` ${linkInfo.tag} link detected`, 'info');
+    }
+
+    async function downloadFile(url, filename, mimeType) {
+      showStatus('Starting download...', 'info');
+      downloadBtn.disabled = true;
+      progressContainer.style.display = 'block';
+      progressFill.style.width = '0%';
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        
+        const totalSize = blob.size;
+        const downloadedSize = new Promise(resolve => {
+          const chunks = [];
+          const reader = response.body.getReader();
+          let received = 0;
+          
+          return reader.read().then(function processText({done, value}) {
+            if (done) {
+              resolve(received);
+              return;
+            }
+            received = received + value.length;
+            const percent = Math.round((received / totalSize) * 100);
+            progressFill.style.width = `${percent}%`;
+            return reader.read().then(processText);
+          });
+        });
+
+        await downloadedSize;
+        
+        const urlForDownload = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = urlForDownload;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        URL.revokeObjectURL(urlForDownload);
+        
+        showStatus(`Downloaded: ${filename}`, 'success');
+        setTimeout(() => showStatus('', 'success'), 3000);
+      } catch (error) {
+        console.error('Download error:', error);
+        showStatus(`Download failed: ${error.message}`, 'error');
+      } finally {
+        downloadBtn.disabled = false;
+        progressContainer.style.display = 'none';
+      }
+    }
+
+    downloadBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      const linkInfo = detectLinkType(url);
+      
+      let downloadUrl = url;
+      let filename = 'download';
+      let mimeType = '';
+
+      switch (linkInfo.type) {
+        case 'video':
+          // YouTube video download - get highest quality MP4
+          if (/youtube\.com/.test(url) || /youtu\.be/.test(url)) {
+            const videoId = url.includes('v=') ? url.split('v=')[1].split('&')[0] : '';
+            if (videoId) {
+              downloadUrl = `https://www.youtube.com/watch?v=${videoId}`;
+              filename = `video_${videoId}.mp4`;
+              mimeType = 'video/mp4';
+            }
+          } else {
+            downloadUrl = url;
+            const ext = linkInfo.type === 'video' ? '.mp4' : '.jpg';
+            filename = `video_${Date.now()}${ext}`;
+          }
+          break;
+          
+        case 'music':
+          if (/soundcloud\.com/.test(url)) {
+            downloadUrl = url;
+            filename = `track_${Date.now()}.mp3`;
+            mimeType = 'audio/mpeg';
+          } else {
+            downloadUrl = url;
+            filename = `audio_${Date.now()}.mp3`;
+            mimeType = 'audio/mpeg';
+          }
+          break;
+          
+        case 'image':
+          downloadUrl = url;
+          const imageExt = /\.(png|jpe?g|gif|webp)/i.exec(url)?.[1] || '.jpg';
+          filename = `image_${Date.now()}${imageExt}`;
+          mimeType = 'image/jpeg';
+          break;
+          
+        case 'apk':
+          downloadUrl = url;
+          filename = `app_${Date.now()}.apk`;
+          mimeType = 'application/vnd.android.package-archive';
+          break;
+          
+        default:
+          downloadUrl = url;
+          filename = `file_${Date.now()}`;
+          break;
+      }
+
+      downloadFile(downloadUrl, filename, mimeType);
+    });
+  </script>
+</body>
+</html>
